@@ -4,7 +4,7 @@
 
 功能：
 1. 接收用户提交的链接
-2. 使用 llms_tools (阿里百炼) 提取网页内容
+2. 使用 Playwright 爬取网页内容
 3. 调用百炼 GLM-5 进行智能分类
 4. 生成摘要和标签
 5. 归档到 ideas-and-notes/inbox/
@@ -73,9 +73,78 @@ class LinkCollector:
             return config.get('models', {}).get('providers', {}).get('qwencode', {})
         return {}
     
+    def extract_content_playwright(self, url: str, cookies: list = None) -> Dict[str, Any]:
+        """
+        使用 Playwright 提取网页内容
+        
+        Args:
+            url: 网页链接
+            cookies: Cookie 列表（可选）
+            
+        Returns:
+            包含标题、内容的字典
+        """
+        try:
+            from playwright.sync_api import sync_playwright
+            
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context()
+                
+                # 添加 Cookie（如果提供）
+                if cookies:
+                    context.add_cookies(cookies)
+                
+                page = context.new_page()
+                
+                print(f"  正在爬取: {url}")
+                page.goto(url, timeout=60000)
+                
+                # 等待页面加载
+                page.wait_for_load_state('networkidle', timeout=30000)
+                
+                # 提取标题
+                title = page.title() or '未知标题'
+                
+                # 提取正文内容
+                # 尝试多种选择器
+                content_selectors = [
+                    'article',
+                    '.article-content',
+                    '.post-content',
+                    '.content',
+                    'main',
+                    'body'
+                ]
+                
+                content = ''
+                for selector in content_selectors:
+                    try:
+                        element = page.query_selector(selector)
+                        if element:
+                            content = element.inner_text()
+                            if len(content) > 200:
+                                break
+                    except:
+                        continue
+                
+                if not content:
+                    content = page.inner_text('body')
+                
+                browser.close()
+                
+                return {
+                    'title': title,
+                    'content': content[:10000],  # 限制长度
+                    'url': url
+                }
+                
+        except Exception as e:
+            return {'error': f'Playwright 爬取失败: {e}'}
+    
     def extract_content(self, url: str) -> Dict[str, Any]:
         """
-        提取网页内容（使用百炼联网搜索）
+        提取网页内容（优先使用 Playwright）
         
         Args:
             url: 网页链接
@@ -83,10 +152,51 @@ class LinkCollector:
         Returns:
             包含标题、内容的字典
         """
+        # 识别网站并加载对应 Cookie
+        cookies = self._load_cookies_for_url(url)
+        
+        # 先尝试 Playwright
+        result = self.extract_content_playwright(url, cookies)
+        
+        if 'error' not in result and result.get('content'):
+            return result
+        
+        # 如果 Playwright 失败，尝试百炼联网搜索
+        print("  Playwright 失败，尝试百炼联网搜索...")
+        return self.extract_content_bailian(url)
+    
+    def _load_cookies_for_url(self, url: str) -> list:
+        """根据 URL 加载对应的 Cookie"""
+        cookie_dir = Path('/root/.openclaw/workspace/link-collector/cookies')
+        
+        # 识别网站
+        if 'xueqiu.com' in url:
+            cookie_file = cookie_dir / 'xueqiu.json'
+        elif 'dianping.com' in url:
+            cookie_file = cookie_dir / 'dianping.json'
+        elif 'xiaohongshu.com' in url:
+            cookie_file = cookie_dir / 'xiaohongshu.json'
+        else:
+            return []
+        
+        # 加载 Cookie
+        if cookie_file.exists():
+            try:
+                with open(cookie_file, 'r') as f:
+                    return json.load(f)
+            except:
+                pass
+        
+        return []
+    
+    def extract_content_bailian(self, url: str) -> Dict[str, Any]:
+        """
+        使用百炼联网搜索提取内容（备选方案）
+        """
         try:
             import httpx
             
-            # 使用百炼 Chat API 配合 enable_search 抓取网页
+            # 使用百炼 Chat API 配合 enable_search
             response = httpx.post(
                 f"{self.base_url}/chat/completions",
                 headers={
@@ -94,13 +204,14 @@ class LinkCollector:
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "glm-5",
+                    "model": "qwen3-max-2026-01-23",  # 支持 enable_search 的模型
                     "messages": [{
                         "role": "user", 
                         "content": f"请提取这个网页的标题和正文内容：{url}\n\n请按以下格式输出：\n## 标题\n[网页标题]\n\n## 正文\n[网页正文内容]"
                     }],
                     "max_tokens": 4000,
-                    "temperature": 0.7
+                    "temperature": 0.7,
+                    "enable_search": True
                 },
                 timeout=300
             )
@@ -119,10 +230,10 @@ class LinkCollector:
                     'url': url
                 }
             else:
-                return {'error': f'请求失败: {response.status_code}'}
+                return {'error': f'百炼请求失败: {response.status_code}'}
                 
         except Exception as e:
-            return {'error': f'提取失败: {e}'}
+            return {'error': f'百炼提取失败: {e}'}
     
     def classify_content(self, title: str, content: str, url: str) -> Dict[str, Any]:
         """

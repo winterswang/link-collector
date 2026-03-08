@@ -1,0 +1,9 @@
+[
+  {
+    "name": "xq_a_token",
+    "value": "请替换为实际值",
+    "domain": ".xueqiu.com",
+    "path": "/",
+    "comment": "雪球登录后获取的 token"
+  }
+]
