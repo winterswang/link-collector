@@ -87,15 +87,6 @@ class LinkCollector:
             import httpx
             
             # 使用百炼 Chat API 配合 enable_search 抓取网页
-            payload = {
-                "model": "glm-5",
-                "messages": [{
-                    "role": "user", 
-                    "content": f"请提取并总结这个网页的主要内容，包括标题和正文：{url}"
-                }],
-                "extra_body": {"enable_search": True}
-            }
-            
             response = httpx.post(
                 f"{self.base_url}/chat/completions",
                 headers={
@@ -106,9 +97,10 @@ class LinkCollector:
                     "model": "glm-5",
                     "messages": [{
                         "role": "user", 
-                        "content": f"请提取并总结这个网页的主要内容，包括标题和正文：{url}"
+                        "content": f"请提取这个网页的标题和正文内容：{url}\n\n请按以下格式输出：\n## 标题\n[网页标题]\n\n## 正文\n[网页正文内容]"
                     }],
-                    "max_tokens": 2000
+                    "max_tokens": 4000,
+                    "temperature": 0.7
                 },
                 timeout=300
             )
@@ -164,8 +156,8 @@ class LinkCollector:
                 json={
                     "model": "glm-5",
                     "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 500,
-                    "temperature": 0.3
+                    "max_tokens": 2000,
+                    "temperature": 0.7
                 },
                 timeout=300
             )
@@ -210,11 +202,19 @@ class LinkCollector:
         inbox_date_dir = INBOX_DIR / today
         inbox_date_dir.mkdir(parents=True, exist_ok=True)
         
-        # 生成文件名
-        safe_title = re.sub(r'[^\w\s-]', '', title)[:50]
+        # 生成文件名（使用时间戳保证唯一性）
+        timestamp = datetime.now().strftime('%H%M%S')
+        safe_title = re.sub(r'[^\w\s-]', '', title)[:30]
         safe_title = re.sub(r'[-\s]+', '-', safe_title)
-        filename = f"{safe_title}.md"
-        filepath = inbox_date_dir / filename
+        
+        # 保存原始内容
+        raw_filename = f"{timestamp}_{safe_title}_raw.md"
+        raw_filepath = inbox_date_dir / raw_filename
+        raw_filepath.write_text(content, encoding='utf-8')
+        
+        # 生成归档文件名
+        archive_filename = f"{timestamp}_{safe_title}.md"
+        filepath = inbox_date_dir / archive_filename
         
         # 生成 Markdown 内容
         md_content = f"""# {title}
@@ -228,6 +228,7 @@ class LinkCollector:
 | **重要性** | {classification.get('importance', '值得关注')} |
 | **标签** | {', '.join(classification.get('tags', []))} |
 | **采集时间** | {datetime.now().strftime('%Y-%m-%d %H:%M')} |
+| **原始内容** | [{raw_filename}](./{raw_filename}) |
 
 ## 摘要
 
@@ -239,10 +240,13 @@ class LinkCollector:
         for point in classification.get('key_points', []):
             md_content += f"- {point}\n"
         
+        if not classification.get('key_points'):
+            md_content += "*要点提取中...*\n"
+        
         md_content += f"""
-## 原文内容
+## 内容预览
 
-{content[:3000]}
+{content[:500]}...
 
 ---
 *由 link-collector 自动采集*
@@ -251,7 +255,7 @@ class LinkCollector:
         # 写入文件
         filepath.write_text(md_content, encoding='utf-8')
         
-        return str(filepath)
+        return filepath, raw_filepath
     
     def process_link(self, url: str) -> Dict[str, Any]:
         """
@@ -285,9 +289,10 @@ class LinkCollector:
         print(f"  标签: {classification.get('tags')}")
         
         # 3. 保存到收件箱
-        filepath = self.save_to_inbox(url, title, content, classification)
+        filepath, raw_filepath = self.save_to_inbox(url, title, content, classification)
         
         print(f"  已保存: {filepath}")
+        print(f"  原始内容: {raw_filepath}")
         
         return {
             'success': True,
@@ -296,7 +301,8 @@ class LinkCollector:
             'importance': classification.get('importance'),
             'tags': classification.get('tags'),
             'summary': classification.get('summary'),
-            'filepath': filepath
+            'filepath': str(filepath),
+            'raw_filepath': str(raw_filepath)
         }
 
 
