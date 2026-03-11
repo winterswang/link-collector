@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-链接内容记录与分类工具 MVP
+链接内容记录与分类工具 V1.1
 
 功能：
-1. 接收用户提交的链接
-2. 使用 Playwright 爬取网页内容
-3. 调用百炼 GLM-5 进行智能分类
-4. 生成摘要和标签
-5. 归档到 ideas-and-notes/inbox/
+1. 接收用户提交的链接或本地文件
+2. 支持格式：网页、PDF、Excel
+3. 使用 Playwright 爬取网页内容
+4. 使用 PyPDF2/pdfplumber 提取 PDF 内容
+5. 使用 openpyxl/pandas 提取 Excel 内容
+6. 调用百炼 GLM-5 进行智能分类
+7. 生成摘要和标签
+8. 归档到 ideas-and-notes/inbox/
 """
 
 import sys
@@ -157,26 +160,233 @@ class LinkCollector:
     
     def extract_content(self, url: str) -> Dict[str, Any]:
         """
-        提取网页内容（优先使用 Playwright）
+        提取内容（自动识别链接或文件）
         
         Args:
-            url: 网页链接
+            url: 网页链接或本地文件路径
             
         Returns:
             包含标题、内容的字典
         """
-        # 识别网站并加载对应 Cookie
-        cookies = self._load_cookies_for_url(url)
+        # 检查是否为本地文件
+        if url.startswith('/') or url.startswith('./') or url.startswith('~/'):
+            return self.extract_local_file(url)
         
-        # 先尝试 Playwright
+        # 检查是否为 file:// 协议
+        if url.startswith('file://'):
+            return self.extract_local_file(url[7:])
+        
+        # 网页链接
+        cookies = self._load_cookies_for_url(url)
         result = self.extract_content_playwright(url, cookies)
         
         if 'error' not in result and result.get('content'):
             return result
         
-        # 如果 Playwright 失败，尝试百炼联网搜索
         print("  Playwright 失败，尝试百炼联网搜索...")
         return self.extract_content_bailian(url)
+    
+    def extract_local_file(self, file_path: str) -> Dict[str, Any]:
+        """
+        提取本地文件内容
+        
+        Args:
+            file_path: 本地文件路径
+            
+        Returns:
+            包含标题、内容的字典
+        """
+        from pathlib import Path
+        
+        # 展开路径
+        file_path = Path(file_path).expanduser().resolve()
+        
+        if not file_path.exists():
+            return {'error': f'文件不存在: {file_path}'}
+        
+        # 获取文件扩展名
+        suffix = file_path.suffix.lower()
+        file_name = file_path.stem
+        
+        print(f"  处理本地文件: {file_path}")
+        print(f"  文件类型: {suffix}")
+        
+        # 根据文件类型选择提取方法
+        if suffix == '.pdf':
+            return self.extract_pdf_content(file_path)
+        elif suffix in ['.xlsx', '.xls']:
+            return self.extract_excel_content(file_path)
+        elif suffix in ['.md', '.txt']:
+            return self.extract_text_content(file_path)
+        else:
+            return {'error': f'不支持的文件类型: {suffix}'}
+    
+    def extract_pdf_content(self, file_path: Path) -> Dict[str, Any]:
+        """
+        提取 PDF 文件内容
+        
+        Args:
+            file_path: PDF 文件路径
+            
+        Returns:
+            包含标题、内容的字典
+        """
+        try:
+            # 尝试使用 pdfplumber（更准确）
+            try:
+                import pdfplumber
+                
+                text_content = []
+                with pdfplumber.open(file_path) as pdf:
+                    print(f"  PDF 页数: {len(pdf.pages)}")
+                    for i, page in enumerate(pdf.pages[:20]):  # 最多提取前20页
+                        text = page.extract_text()
+                        if text:
+                            text_content.append(f"--- 第{i+1}页 ---\n{text}")
+                
+                content = '\n\n'.join(text_content)
+                
+            except ImportError:
+                # 回退到 PyPDF2
+                import PyPDF2
+                
+                text_content = []
+                with open(file_path, 'rb') as f:
+                    reader = PyPDF2.PdfReader(f)
+                    print(f"  PDF 页数: {len(reader.pages)}")
+                    for i, page in enumerate(reader.pages[:20]):
+                        text = page.extract_text()
+                        if text:
+                            text_content.append(f"--- 第{i+1}页 ---\n{text}")
+                
+                content = '\n\n'.join(text_content)
+            
+            if not content.strip():
+                return {'error': 'PDF 内容提取为空'}
+            
+            # 使用文件名作为标题
+            title = file_path.stem
+            
+            return {
+                'title': title,
+                'content': content[:20000],  # 限制长度
+                'url': f'file://{file_path}',
+                'file_type': 'pdf',
+                'file_path': str(file_path)
+            }
+            
+        except Exception as e:
+            return {'error': f'PDF 提取失败: {e}'}
+    
+    def extract_excel_content(self, file_path: Path) -> Dict[str, Any]:
+        """
+        提取 Excel 文件内容
+        
+        Args:
+            file_path: Excel 文件路径
+            
+        Returns:
+            包含标题、内容的字典
+        """
+        try:
+            # 尝试使用 pandas
+            try:
+                import pandas as pd
+                
+                # 读取所有工作表
+                excel_file = pd.ExcelFile(file_path)
+                sheet_names = excel_file.sheet_names
+                
+                print(f"  Excel 工作表数: {len(sheet_names)}")
+                
+                content_parts = []
+                content_parts.append(f"## 文件: {file_path.name}")
+                content_parts.append(f"## 工作表: {', '.join(sheet_names)}\n")
+                
+                for sheet_name in sheet_names[:5]:  # 最多处理前5个工作表
+                    df = pd.read_excel(file_path, sheet_name=sheet_name)
+                    
+                    content_parts.append(f"\n### 工作表: {sheet_name}")
+                    content_parts.append(f"行数: {len(df)}, 列数: {len(df.columns)}")
+                    content_parts.append(f"列名: {', '.join(df.columns.astype(str))}")
+                    
+                    # 数据预览（前10行）
+                    content_parts.append("\n数据预览:")
+                    content_parts.append(df.head(10).to_string())
+                    
+                    # 数据统计
+                    content_parts.append("\n数据统计:")
+                    content_parts.append(df.describe(include='all').to_string())
+                
+                content = '\n'.join(content_parts)
+                
+            except ImportError:
+                # 回退到 openpyxl
+                from openpyxl import load_workbook
+                
+                wb = load_workbook(file_path, read_only=True, data_only=True)
+                sheet_names = wb.sheetnames
+                
+                print(f"  Excel 工作表数: {len(sheet_names)}")
+                
+                content_parts = []
+                content_parts.append(f"## 文件: {file_path.name}")
+                content_parts.append(f"## 工作表: {', '.join(sheet_names)}\n")
+                
+                for sheet_name in sheet_names[:5]:
+                    ws = wb[sheet_name]
+                    
+                    content_parts.append(f"\n### 工作表: {sheet_name}")
+                    content_parts.append(f"行数: {ws.max_row}, 列数: {ws.max_column}")
+                    
+                    # 数据预览（前10行）
+                    content_parts.append("\n数据预览:")
+                    for row in ws.iter_rows(min_row=1, max_row=11, values_only=True):
+                        content_parts.append(' | '.join(str(cell) if cell else '' for cell in row))
+                
+                content = '\n'.join(content_parts)
+            
+            # 使用文件名作为标题
+            title = file_path.stem
+            
+            return {
+                'title': title,
+                'content': content[:20000],
+                'url': f'file://{file_path}',
+                'file_type': 'excel',
+                'file_path': str(file_path),
+                'sheet_count': len(sheet_names) if 'sheet_names' in dir() else 0
+            }
+            
+        except Exception as e:
+            return {'error': f'Excel 提取失败: {e}'}
+    
+    def extract_text_content(self, file_path: Path) -> Dict[str, Any]:
+        """
+        提取文本文件内容
+        
+        Args:
+            file_path: 文本文件路径
+            
+        Returns:
+            包含标题、内容的字典
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            title = file_path.stem
+            
+            return {
+                'title': title,
+                'content': content[:20000],
+                'url': f'file://{file_path}',
+                'file_type': 'text',
+                'file_path': str(file_path)
+            }
+            
+        except Exception as e:
+            return {'error': f'文本提取失败: {e}'}
     
     def _load_cookies_for_url(self, url: str) -> list:
         """根据 URL 加载对应的 Cookie"""
@@ -314,10 +524,18 @@ class LinkCollector:
             }
     
     def save_to_inbox(self, url: str, title: str, content: str, 
-                      classification: Dict[str, Any]) -> str:
+                      classification: Dict[str, Any],
+                      file_type: str = 'web') -> str:
         """
         保存到收件箱
         
+        Args:
+            url: 来源链接或文件路径
+            title: 标题
+            content: 内容
+            classification: 分类结果
+            file_type: 文件类型 (web/pdf/excel/text)
+            
         Returns:
             保存的文件路径
         """
@@ -341,13 +559,23 @@ class LinkCollector:
         filepath = inbox_date_dir / archive_filename
         
         # 生成 Markdown 内容
+        # 文件类型图标
+        file_type_icons = {
+            'web': '🌐',
+            'pdf': '📄',
+            'excel': '📊',
+            'text': '📝'
+        }
+        file_type_icon = file_type_icons.get(file_type, '📎')
+        
         md_content = f"""# {title}
 
 ## 元数据
 
 | 属性 | 值 |
 |------|------|
-| **来源** | [{url}]({url}) |
+| **来源** | {file_type_icon} [{url}]({url}) |
+| **类型** | {file_type.upper()} |
 | **分类** | {classification.get('category', 'reading')} |
 | **重要性** | {classification.get('importance', '值得关注')} |
 | **标签** | {', '.join(classification.get('tags', []))} |
@@ -373,7 +601,7 @@ class LinkCollector:
 {content[:500]}...
 
 ---
-*由 link-collector 自动采集*
+*由 link-collector V1.1 自动采集*
 """
         
         # 写入文件
@@ -383,10 +611,10 @@ class LinkCollector:
     
     def process_link(self, url: str) -> Dict[str, Any]:
         """
-        处理单个链接
+        处理单个链接或文件
         
         Args:
-            url: 网页链接
+            url: 网页链接或本地文件路径
             
         Returns:
             处理结果
@@ -400,9 +628,12 @@ class LinkCollector:
         
         title = extracted.get('title', '未知标题')
         content = extracted.get('content', '')
+        file_type = extracted.get('file_type', 'web')
         
         print(f"  标题: {title}")
         print(f"  内容长度: {len(content)} 字符")
+        if file_type != 'web':
+            print(f"  文件类型: {file_type}")
         
         # 2. 智能分类
         print("  正在分类...")
@@ -413,7 +644,7 @@ class LinkCollector:
         print(f"  标签: {classification.get('tags')}")
         
         # 3. 保存到收件箱
-        filepath, raw_filepath = self.save_to_inbox(url, title, content, classification)
+        filepath, raw_filepath = self.save_to_inbox(url, title, content, classification, file_type)
         
         print(f"  已保存: {filepath}")
         print(f"  原始内容: {raw_filepath}")
@@ -426,15 +657,27 @@ class LinkCollector:
             'tags': classification.get('tags'),
             'summary': classification.get('summary'),
             'filepath': str(filepath),
-            'raw_filepath': str(raw_filepath)
+            'raw_filepath': str(raw_filepath),
+            'file_type': file_type
         }
 
 
 def main():
     """主函数"""
     if len(sys.argv) < 2:
-        print("用法: python collector.py <URL>")
-        print("示例: python collector.py https://example.com/article")
+        print("=" * 60)
+        print("链接内容记录与分类工具 V1.1")
+        print("=" * 60)
+        print("\n用法: python collector.py <URL或文件路径>")
+        print("\n支持格式:")
+        print("  🌐 网页链接 - https://example.com/article")
+        print("  📄 PDF文件  - /path/to/file.pdf")
+        print("  📊 Excel文件 - /path/to/file.xlsx")
+        print("  📝 文本文件  - /path/to/file.md")
+        print("\n示例:")
+        print("  python collector.py https://xueqiu.com/123456")
+        print("  python collector.py ~/Downloads/report.pdf")
+        print("  python collector.py ./data.xlsx")
         return
     
     url = sys.argv[1]
@@ -442,7 +685,7 @@ def main():
     collector = LinkCollector()
     result = collector.process_link(url)
     
-    print("\n" + "="*50)
+    print("\n" + "="*60)
     print("处理结果:")
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

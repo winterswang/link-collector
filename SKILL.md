@@ -1,7 +1,7 @@
 ---
 name: link-collector
-description: 链接内容记录与分类工具。当用户提供链接时，自动提取内容、智能分类、生成摘要并归档。
-version: 1.0.0
+description: 链接内容记录与分类工具。支持网页、PDF、Excel文件的自动提取、智能分类和归档。
+version: 1.1.0
 author: winterswang
 triggers:
   - pattern: "记录链接 {url}"
@@ -10,29 +10,53 @@ triggers:
     command: "python3 /root/.openclaw/workspace/link-collector/collector.py {url}"
   - pattern: "保存链接 {url}"
     command: "python3 /root/.openclaw/workspace/link-collector/collector.py {url}"
+  - pattern: "记录文件 {path}"
+    command: "python3 /root/.openclaw/workspace/link-collector/collector.py {path}"
 ---
 
-# 链接内容记录与分类工具
+# 链接内容记录与分类工具 V1.1
 
-自动提取网页内容，智能分类并归档。
+自动提取网页、PDF、Excel内容，智能分类并归档。
 
-## 功能
+## 🆕 V1.1 新功能
 
 | 功能 | 说明 |
 |------|------|
-| 内容提取 | 百炼 GLM-5 联网搜索 |
-| 智能分类 | 5 类：tech/investment/life/reading/tools |
-| 标签生成 | 自动提取关键词 |
-| 摘要生成 | 一句话总结 |
-| 归档存储 | 保存到 ideas-and-notes/inbox/ |
+| **PDF支持** | 自动提取PDF文本内容，支持多页文档 |
+| **Excel支持** | 自动读取Excel工作表，提取数据预览和统计 |
+| **文本支持** | 支持Markdown和纯文本文件 |
+| **智能识别** | 自动识别输入类型（网页/文件） |
+
+## 支持格式
+
+| 类型 | 图标 | 格式 | 提取方式 |
+|------|------|------|----------|
+| **网页** | 🌐 | URL | Playwright + 百炼联网 |
+| **PDF** | 📄 | .pdf | pdfplumber / PyPDF2 |
+| **Excel** | 📊 | .xlsx, .xls | pandas / openpyxl |
+| **文本** | 📝 | .md, .txt | 直接读取 |
 
 ## 使用方式
 
-- `记录链接 https://example.com`
-- `收藏 https://xueqiu.com/xxx`
-- `保存链接 https://...`
+### 网页链接
+
+```
+记录链接 https://example.com/article
+收藏 https://xueqiu.com/xxx
+保存链接 https://...
+```
+
+### 本地文件
+
+```
+记录文件 ~/Downloads/report.pdf
+收藏 ./data.xlsx
+保存链接 /path/to/file.md
+```
 
 ## 输出示例
+
+### 网页
 
 ```markdown
 # 文章标题
@@ -41,33 +65,139 @@ triggers:
 
 | 属性 | 值 |
 |------|------|
-| **来源** | [URL](URL) |
+| **来源** | 🌐 [URL](URL) |
+| **类型** | WEB |
 | **分类** | investment |
 | **重要性** | 值得关注 |
 | **标签** | 美股, AI投资 |
-| **采集时间** | 2026-03-08 22:26 |
+| **采集时间** | 2026-03-11 23:20 |
 
 ## 摘要
-
 一句话摘要...
 
 ## 要点
-
 - 要点1
 - 要点2
 - 要点3
 
-## 原文内容
-
+## 内容预览
 ...
+
+---
+*由 link-collector V1.1 自动采集*
+```
+
+### PDF
+
+```markdown
+# Report Title
+
+## 元数据
+
+| 属性 | 值 |
+|------|------|
+| **来源** | 📄 [file:///path/to/report.pdf](file:///path/to/report.pdf) |
+| **类型** | PDF |
+| **分类** | reading |
+| **重要性** | 必读 |
+| **标签** | 报告, 分析 |
+| **采集时间** | 2026-03-11 23:20 |
+
+## 摘要
+PDF内容摘要...
+
+## 要点
+- 要点1
+- 要点2
+
+## 内容预览
+--- 第1页 ---
+PDF文本内容...
+
+---
+*由 link-collector V1.1 自动采集*
+```
+
+### Excel
+
+```markdown
+# Sales Data
+
+## 元数据
+
+| 属性 | 值 |
+|------|------|
+| **来源** | 📊 [file:///path/to/data.xlsx](file:///path/to/data.xlsx) |
+| **类型** | EXCEL |
+| **分类** | tools |
+| **重要性** | 值得关注 |
+| **标签** | 数据, 表格 |
+| **采集时间** | 2026-03-11 23:20 |
+
+## 摘要
+Excel数据摘要...
+
+## 要点
+- 工作表数: 3
+- 行数: 1000
+- 列名: 日期, 销售额, 利润
+
+## 内容预览
+## 文件: data.xlsx
+## 工作表: Sheet1, Sheet2, Sheet3
+
+### 工作表: Sheet1
+行数: 1000, 列数: 10
+列名: 日期, 销售额, 利润, ...
+
+数据预览:
+| 日期 | 销售额 | 利润 |
+|------|--------|------|
+| 2026-01-01 | 10000 | 2000 |
+...
+
+---
+*由 link-collector V1.1 自动采集*
 ```
 
 ## 技术栈
 
-- 百炼 GLM-5（联网搜索 + 智能分析）
-- Markdown 存储
-- 5 分钟超时配置
+| 组件 | 技术 |
+|------|------|
+| LLM | 百炼 GLM-5（联网搜索 + 智能分析） |
+| 网页爬取 | Playwright |
+| PDF提取 | pdfplumber / PyPDF2 |
+| Excel提取 | pandas / openpyxl |
+| 存储 | Markdown |
+| 超时 | 5 分钟 |
+
+## 分类体系
+
+| 分类 | 说明 |
+|------|------|
+| **tech** | 技术相关（编程、架构、工具） |
+| **investment** | 投资理财（股票、基金、经济） |
+| **life** | 生活日常（健康、旅行、美食） |
+| **reading** | 阅读笔记（书籍、文章、思考） |
+| **tools** | 工具资源（软件、服务、资源） |
+
+## 依赖安装
+
+```bash
+# PDF 支持
+pip install pdfplumber PyPDF2
+
+# Excel 支持
+pip install pandas openpyxl
+
+# 网页爬取
+pip install playwright
+playwright install chromium
+```
 
 ## GitHub
 
 https://github.com/winterswang/link-collector
+
+---
+*版本: V1.1.0 | 更新: 2026-03-11*
