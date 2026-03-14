@@ -1,0 +1,41 @@
+# link-collector 配置文件
+
+# 存储配置
+storage:
+  data_dir: ./data           # 数据根目录
+  inbox_dir: ./data/inbox     # 收件箱（原始+加工数据）
+  archive_dir: ./data/archive # 归档目录
+  exports_dir: ./data/exports # 导出目录
+
+# 模型配置
+models:
+  provider: bailian          # 百炼
+  model: glm-4-plus          # 模型名称
+  api_base: https://open.bigmodel.cn/api/paas/v4
+  max_tokens: 4096
+  timeout: 300                # 超时时间（秒）
+
+# 功能开关
+features:
+  auto_archive: false        # 自动归档
+  dedup: true                 # URL 去重
+  save_raw: true              # 保存原始数据
+
+# 爬取配置
+crawler:
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  timeout: 30                 # 页面加载超时
+  wait_after_load: 2          # 加载后等待时间
+
+# 分类体系
+categories:
+  - tech                      # 技术相关
+  - investment                # 投资理财
+  - life                      # 生活日常
+  - reading                   # 阅读笔记
+  - tools                     # 工具资源
+
+# 日志配置
+logging:
+  level: INFO
+  file: ./logs/collector.log

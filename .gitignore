@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# 数据目录
+data/inbox/
+data/archive/
+data/exports/
+
+# 日志
+logs/
+*.log
+
+# Cookies（敏感信息）
+cookies/
+
+# IDE
+.vscode/
+.idea/
+
+# 环境
+.env
+.venv/
+venv/
+
+# 测试
+.pytest_cache/
+.coverage

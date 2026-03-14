@@ -1,8 +1,12 @@
 ---
 name: link-collector
 description: 链接内容记录与分类工具。支持网页、PDF、Excel文件的自动提取、智能分类和归档。
-version: 1.1.0
+version: 1.2.0
 author: winterswang
+config:
+  data_dir: ./data
+  inbox_dir: ./data/inbox
+  archive_dir: ./data/archive
 triggers:
   - pattern: "记录链接 {url}"
     command: "python3 /root/.openclaw/workspace/link-collector/collector.py {url}"
@@ -14,18 +18,40 @@ triggers:
     command: "python3 /root/.openclaw/workspace/link-collector/collector.py {path}"
 ---
 
-# 链接内容记录与分类工具 V1.1
+# 链接内容记录与分类工具 V1.2
 
 自动提取网页、PDF、Excel内容，智能分类并归档。
 
-## 🆕 V1.1 新功能
+## 🆕 V1.2 更新
 
 | 功能 | 说明 |
 |------|------|
-| **PDF支持** | 自动提取PDF文本内容，支持多页文档 |
-| **Excel支持** | 自动读取Excel工作表，提取数据预览和统计 |
-| **文本支持** | 支持Markdown和纯文本文件 |
-| **智能识别** | 自动识别输入类型（网页/文件） |
+| **配置文件** | 支持 config.yaml 配置 |
+| **数据本地化** | 数据存储在项目 data/ 目录 |
+| **路径可配置** | inbox/archive 路径可自定义 |
+
+## 项目结构
+
+```
+link-collector/
+├── collector.py           # 主程序
+├── SKILL.md               # Skill 定义
+├── config.yaml            # 配置文件
+├── data/                  # 数据目录
+│   ├── inbox/             # 收件箱
+│   │   └── 2026-03-15/    # 按日期组织
+│   ├── archive/           # 归档
+│   └── exports/           # 导出
+├── cookies/               # 登录凭证
+└── logs/                  # 日志
+```
+
+## 数据存储
+
+| 类型 | 位置 | 说明 |
+|------|------|------|
+| **原始数据** | `data/inbox/{日期}/*_raw.md` | 未经处理的原始提取内容 |
+| **加工数据** | `data/inbox/{日期}/{标题}.md` | LLM 处理后的结构化内容 |
 
 ## 支持格式
 

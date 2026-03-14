@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-链接内容记录与分类工具 V1.1
+链接内容记录与分类工具 V1.2
 
 功能：
 1. 接收用户提交的链接或本地文件
@@ -10,29 +10,59 @@
 5. 使用 openpyxl/pandas 提取 Excel 内容
 6. 调用百炼 GLM-5 进行智能分类
 7. 生成摘要和标签
-8. 归档到 ideas-and-notes/inbox/
+8. 归档到本地 data/inbox/ 目录
+
+V1.2 改进：
+- 支持配置文件 (config.yaml)
+- 数据存储本地化
+- 路径可配置
 """
 
 import sys
 import os
 import json
 import re
+import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-# 项目路径
-PROJECT_ROOT = Path('/root/.openclaw/workspace/ideas-and-notes')
-INBOX_DIR = PROJECT_ROOT / 'inbox'
+# 项目根目录
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+def load_config() -> dict:
+    """加载配置文件"""
+    config_path = SCRIPT_DIR / 'config.yaml'
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+# 加载配置
+CONFIG = load_config()
+
+# 存储路径（支持配置）
+STORAGE_CONFIG = CONFIG.get('storage', {})
+DATA_DIR = Path(STORAGE_CONFIG.get('data_dir', './data'))
+INBOX_DIR = Path(STORAGE_CONFIG.get('inbox_dir', './data/inbox'))
+ARCHIVE_DIR = Path(STORAGE_CONFIG.get('archive_dir', './data/archive'))
+
+# 转换为绝对路径
+if not DATA_DIR.is_absolute():
+    DATA_DIR = SCRIPT_DIR / DATA_DIR
+if not INBOX_DIR.is_absolute():
+    INBOX_DIR = SCRIPT_DIR / INBOX_DIR
+if not ARCHIVE_DIR.is_absolute():
+    ARCHIVE_DIR = SCRIPT_DIR / ARCHIVE_DIR
 
 # 分类标准
-CATEGORIES = {
+CATEGORIES = CONFIG.get('categories', {
     'tech': '技术相关（编程、架构、工具）',
     'investment': '投资理财（股票、基金、经济）',
     'life': '生活日常（健康、旅行、美食）',
     'reading': '阅读笔记（书籍、文章、思考）',
     'tools': '工具资源（软件、服务、资源）'
-}
+})
 
 # 智能分类 Prompt
 CLASSIFICATION_PROMPT = """你是一个内容分类助手。请分析以下网页内容，并进行智能分类。
