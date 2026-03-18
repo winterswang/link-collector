@@ -1,229 +1,164 @@
 ---
 name: link-collector
-description: 链接内容记录与分类工具。支持网页、PDF、Excel文件的自动提取、智能分类和归档。
-version: 1.2.0
+description: Link-Collector 知识库检索工具 - 搜索本地收藏的文章、研报、IR文件等
+version: 2.0.0
 author: winterswang
 config:
-  data_dir: ./data
-  inbox_dir: ./data/inbox
-  archive_dir: ./data/archive
+  data_dir: /root/.openclaw/workspace/link-collector/data
 triggers:
-  - pattern: "记录链接 {url}"
-    command: "python3 /root/.openclaw/workspace/link-collector/collector.py {url}"
-  - pattern: "收藏 {url}"
-    command: "python3 /root/.openclaw/workspace/link-collector/collector.py {url}"
-  - pattern: "保存链接 {url}"
-    command: "python3 /root/.openclaw/workspace/link-collector/collector.py {url}"
-  - pattern: "记录文件 {path}"
-    command: "python3 /root/.openclaw/workspace/link-collector/collector.py {path}"
+  # 搜索触发词
+  - pattern: "link 搜索"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py search"
+  - pattern: "link 检索"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py search"
+  - pattern: "link 查找"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py search"
+  - pattern: "link 找"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py search"
+  
+  # 按维度搜索
+  - pattern: "link 股票"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py stock"
+  - pattern: "link 作者"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py author"
+  - pattern: "link 标签"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py tag"
+  
+  # 按类型搜索
+  - pattern: "link 年报"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py type annual"
+  - pattern: "link 季报"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py type quarterly"
+  - pattern: "link 研报"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py type report"
+  - pattern: "link IR文件"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py tag IR文件"
+  
+  # 统计和聚合
+  - pattern: "link 统计"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py stats"
+  - pattern: "link 状态"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py stats"
+  - pattern: "link 聚合"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py aggregate"
+  - pattern: "link 汇总"
+    command: "python3 /root/.openclaw/workspace/link-collector/skill.py aggregate"
 ---
 
-# 链接内容记录与分类工具 V1.2
+# Link-Collector Skill
 
-自动提取网页、PDF、Excel内容，智能分类并归档。
-
-## 🆕 V1.2 更新
-
-| 功能 | 说明 |
-|------|------|
-| **配置文件** | 支持 config.yaml 配置 |
-| **数据本地化** | 数据存储在项目 data/ 目录 |
-| **路径可配置** | inbox/archive 路径可自定义 |
-
-## 项目结构
-
-```
-link-collector/
-├── collector.py           # 主程序
-├── SKILL.md               # Skill 定义
-├── config.yaml            # 配置文件
-├── data/                  # 数据目录
-│   ├── inbox/             # 收件箱
-│   │   └── 2026-03-15/    # 按日期组织
-│   ├── archive/           # 归档
-│   └── exports/           # 导出
-├── cookies/               # 登录凭证
-└── logs/                  # 日志
-```
-
-## 数据存储
-
-| 类型 | 位置 | 说明 |
-|------|------|------|
-| **原始数据** | `data/inbox/{日期}/*_raw.md` | 未经处理的原始提取内容 |
-| **加工数据** | `data/inbox/{日期}/{标题}.md` | LLM 处理后的结构化内容 |
-
-## 支持格式
-
-| 类型 | 图标 | 格式 | 提取方式 |
-|------|------|------|----------|
-| **网页** | 🌐 | URL | Playwright + 百炼联网 |
-| **PDF** | 📄 | .pdf | pdfplumber / PyPDF2 |
-| **Excel** | 📊 | .xlsx, .xls | pandas / openpyxl |
-| **文本** | 📝 | .md, .txt | 直接读取 |
+知识库检索工具，支持多维度搜索本地收藏的文章、研报、IR文件。
 
 ## 使用方式
 
-### 网页链接
+### 1. 全文搜索
 
 ```
-记录链接 https://example.com/article
-收藏 https://xueqiu.com/xxx
-保存链接 https://...
+link 搜索 {关键词}
+link 检索 {关键词}
+link 查找 {关键词}
+link 找 {关键词}
 ```
 
-### 本地文件
+示例：
+- "link 搜索 PDD 估值"
+- "link 检索 护城河分析"
+
+### 2. 按股票搜索
 
 ```
-记录文件 ~/Downloads/report.pdf
-收藏 ./data.xlsx
-保存链接 /path/to/file.md
+link 股票 {股票代码}
 ```
 
-## 输出示例
+示例：
+- "link 股票 PDD"
+- "link 股票 00700" (腾讯)
+- "link 股票 TCEHY" (中海油)
 
-### 网页
+### 3. 按作者搜索
 
-```markdown
-# 文章标题
+```
+link 作者 {作者名}
+```
 
-## 元数据
+示例：
+- "link 作者 czy710"
+- "link 作者 林文丰"
 
-| 属性 | 值 |
+### 4. 按标签搜索
+
+```
+link 标签 {标签名}
+```
+
+示例：
+- "link 标签 护城河"
+- "link 标签 估值"
+- "link 标签 年报"
+
+### 5. 按类型搜索
+
+```
+link 年报
+link 季报
+link 研报
+link IR文件
+```
+
+### 6. 统计和聚合
+
+```
+link 统计        # 显示知识库统计
+link 聚合 股票   # 按股票聚合
+link 聚合 作者   # 按作者聚合
+link 聚合 标签   # 按标签聚合
+```
+
+## 筛选条件（可选）
+
+可以在搜索后追加筛选条件：
+
+| 条件 | 示例 |
 |------|------|
-| **来源** | 🌐 [URL](URL) |
-| **类型** | WEB |
-| **分类** | investment |
-| **重要性** | 值得关注 |
-| **标签** | 美股, AI投资 |
-| **采集时间** | 2026-03-11 23:20 |
+| `--from 日期` | "link 股票 PDD --from 2026-03-01" |
+| `--to 日期` | "link 作者 czy710 --to 2026-03-15" |
+| `--必读` | "link 股票 PDD --必读" |
+| `--值得关注` | "link 搜索 估值 --值得关注" |
 
-## 摘要
-一句话摘要...
+## 返回格式
 
-## 要点
-- 要点1
-- 要点2
-- 要点3
+```
+📚 找到 X 篇文章:
 
-## 内容预览
-...
+1. {标题}
+   来源: {作者}
+   日期: {日期}
+   重要性: {级别} ({分数}分)
 
----
-*由 link-collector V1.1 自动采集*
+2. ...
 ```
 
-### PDF
+## 数据来源
 
-```markdown
-# Report Title
-
-## 元数据
-
-| 属性 | 值 |
+| 来源 | 说明 |
 |------|------|
-| **来源** | 📄 [file:///path/to/report.pdf](file:///path/to/report.pdf) |
-| **类型** | PDF |
-| **分类** | reading |
-| **重要性** | 必读 |
-| **标签** | 报告, 分析 |
-| **采集时间** | 2026-03-11 23:20 |
+| xueqiu-crawler | 雪球文章（每日 02:00 同步） |
+| ir-crawler | IR 文件（年报、季报等） |
+| 手动导入 | 用户通过 link-collector 导入 |
 
-## 摘要
-PDF内容摘要...
+## Python API
 
-## 要点
-- 要点1
-- 要点2
+```python
+from link_collector import Library
 
-## 内容预览
---- 第1页 ---
-PDF文本内容...
+lib = Library()
 
----
-*由 link-collector V1.1 自动采集*
+# 搜索
+articles = lib.search(query="PDD 估值")
+articles = lib.search(stock="PDD")
+articles = lib.search(author="czy710")
+
+# 聚合
+stocks = lib.indexer._by_stock
+tags = lib.get_tag_cloud()
 ```
-
-### Excel
-
-```markdown
-# Sales Data
-
-## 元数据
-
-| 属性 | 值 |
-|------|------|
-| **来源** | 📊 [file:///path/to/data.xlsx](file:///path/to/data.xlsx) |
-| **类型** | EXCEL |
-| **分类** | tools |
-| **重要性** | 值得关注 |
-| **标签** | 数据, 表格 |
-| **采集时间** | 2026-03-11 23:20 |
-
-## 摘要
-Excel数据摘要...
-
-## 要点
-- 工作表数: 3
-- 行数: 1000
-- 列名: 日期, 销售额, 利润
-
-## 内容预览
-## 文件: data.xlsx
-## 工作表: Sheet1, Sheet2, Sheet3
-
-### 工作表: Sheet1
-行数: 1000, 列数: 10
-列名: 日期, 销售额, 利润, ...
-
-数据预览:
-| 日期 | 销售额 | 利润 |
-|------|--------|------|
-| 2026-01-01 | 10000 | 2000 |
-...
-
----
-*由 link-collector V1.1 自动采集*
-```
-
-## 技术栈
-
-| 组件 | 技术 |
-|------|------|
-| LLM | 百炼 GLM-5（联网搜索 + 智能分析） |
-| 网页爬取 | Playwright |
-| PDF提取 | pdfplumber / PyPDF2 |
-| Excel提取 | pandas / openpyxl |
-| 存储 | Markdown |
-| 超时 | 5 分钟 |
-
-## 分类体系
-
-| 分类 | 说明 |
-|------|------|
-| **tech** | 技术相关（编程、架构、工具） |
-| **investment** | 投资理财（股票、基金、经济） |
-| **life** | 生活日常（健康、旅行、美食） |
-| **reading** | 阅读笔记（书籍、文章、思考） |
-| **tools** | 工具资源（软件、服务、资源） |
-
-## 依赖安装
-
-```bash
-# PDF 支持
-pip install pdfplumber PyPDF2
-
-# Excel 支持
-pip install pandas openpyxl
-
-# 网页爬取
-pip install playwright
-playwright install chromium
-```
-
-## GitHub
-
-https://github.com/winterswang/link-collector
-
----
-*版本: V1.1.0 | 更新: 2026-03-11*

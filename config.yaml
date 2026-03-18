@@ -29,11 +29,11 @@ crawler:
 
 # 分类体系
 categories:
-  - tech                      # 技术相关
-  - investment                # 投资理财
-  - life                      # 生活日常
-  - reading                   # 阅读笔记
-  - tools                     # 工具资源
+  tech: 技术相关（编程、架构、工具）
+  investment: 投资理财（股票、基金、经济）
+  life: 生活日常（健康、旅行、美食）
+  reading: 阅读笔记（书籍、文章、思考）
+  tools: 工具资源（软件、服务、资源）
 
 # 日志配置
 logging:

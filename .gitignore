@@ -30,3 +30,7 @@ venv/
 # 测试
 .pytest_cache/
 .coverage
+# 更多数据目录
+data/index/
+data/library/
+data/config/

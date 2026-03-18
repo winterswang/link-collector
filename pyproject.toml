@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "link-collector"
+version = "2.0.0"
+description = "智能知识管理系统 - 内容采集、分类、存储、检索"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "winterswang"}
+]
+keywords = ["knowledge-management", "crawler", "classifier", "search"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "openai>=1.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+web = [
+    "playwright>=1.40.0",
+]
+pdf = [
+    "pdfplumber>=0.10.0",
+]
+excel = [
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+]
+all = [
+    "link-collector[web,pdf,excel]",
+]
+
+[project.scripts]
+link-collector = "link_collector.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/winterswang/link-collector"
+Documentation = "https://github.com/winterswang/link-collector#readme"
+Repository = "https://github.com/winterswang/link-collector"
